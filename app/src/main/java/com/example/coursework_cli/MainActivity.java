@@ -1,9 +1,5 @@
 package com.example.coursework_cli;
 
-import androidx.activity.result.ActivityResult;
-import androidx.activity.result.ActivityResultCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
@@ -27,26 +23,28 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
-import java.util.List;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity{
 
     Button btMain, btUpload;
     Context context;
-    TextView tv2;
-    String filename;
+    TextView tv2, tv3;
+    String filename, response;
 
     public static String getPathFromUri(final Context context, final Uri uri) {
 
@@ -198,11 +196,11 @@ public class MainActivity extends AppCompatActivity {
                 call.enqueue(new Callback<ResponseBody>() {
                     @Override
                     public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                        if (response.code() == 204) {
+                        if (response.isSuccessful()) {
                             Log.d("my_logs", String.valueOf(response.body()));
                         } else {
                             Toast.makeText(MainActivity.this, "Code:" + response.code() +"\nUpload Error: " + response.toString(), Toast.LENGTH_SHORT).show();
-                            Log.d("my_logs", "Code:" + response.code() +"\nUpload Error: " + response.toString());
+                            Log.d("my_logs", "Code:" + response.code() +"\nUpload Error: " + response + "\n" + response.headers() + "\n" + response.raw());
                         }
 
                     }
@@ -213,7 +211,25 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(MainActivity.this, "Something went wrong...Please try later!", Toast.LENGTH_SHORT).show();
                     }
                 });
+
+                Request request = call.clone().request();
+                OkHttpClient client = new OkHttpClient();
+                try {
+                    okhttp3.Response result = client.newCall(request).execute();
+                    JSONObject jObject = new JSONObject(result.body().string());
+                    response = "3) Файл загружен успешно! Содержание файла, записанного на сервер: \"" + jObject.getString("translited_message") + "\"";
+                } catch (IOException | JSONException e) {
+                    e.printStackTrace();
+                }
+
                 return null;
+            }
+
+            @Override
+            protected void onPostExecute(Void aVoid) {
+                super.onPostExecute(aVoid);
+                tv3.setText(response);
+                tv3.setVisibility(View.VISIBLE);
             }
         }
 
@@ -221,13 +237,12 @@ public class MainActivity extends AppCompatActivity {
             getAsyncTask.execute();
         }
 
-
     void getFilename() {
         Intent chooseFile = new Intent(Intent.ACTION_GET_CONTENT);
-        chooseFile.setType("*/*");
+        chooseFile.setType("text/plain");
         //chooseFile.setType("text/plain");
         chooseFile = Intent.createChooser(chooseFile, "Choose a file");
-        startActivityForResult(chooseFile, 33);
+        startActivityForResult(chooseFile, Settings.fileSelectRequestCode);
 
     }
 
@@ -239,7 +254,7 @@ public class MainActivity extends AppCompatActivity {
 
         context = this;
 
-        requestMemoryReadPermission(context, Settings.permission_request_code);
+        requestMemoryReadPermission(context, Settings.permissionRequestCode);
         btMain = findViewById(R.id.bt_main);
         btMain.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -257,13 +272,14 @@ public class MainActivity extends AppCompatActivity {
         });
 
         tv2 = findViewById(R.id.tv_2);
+        tv3 = findViewById(R.id.tv_3);
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         switch (requestCode) {
-            case 33:
+            case Settings.fileSelectRequestCode:
                 if (resultCode == Activity.RESULT_OK && data != null) {
                     filename = getPathFromUri(context, data.getData());
                     tv2.setText("2) Вы выбрали файл: " + filename + "\nДля загрузки файла на сервер нажмите кнопку ниже");
@@ -281,7 +297,7 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode,
                                            String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == Settings.permission_request_code) {
+        if (requestCode == Settings.permissionRequestCode) {
             if (grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             } else {
