@@ -193,25 +193,6 @@ public class MainActivity extends AppCompatActivity{
 
                 Call<ResponseBody> call = service.uploadReceipt(body);
 
-                call.enqueue(new Callback<ResponseBody>() {
-                    @Override
-                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                        if (response.isSuccessful()) {
-                            Log.d("my_logs", String.valueOf(response.body()));
-                        } else {
-                            Toast.makeText(MainActivity.this, "Code:" + response.code() +"\nUpload Error: " + response.toString(), Toast.LENGTH_SHORT).show();
-                            Log.d("my_logs", "Code:" + response.code() +"\nUpload Error: " + response + "\n" + response.headers() + "\n" + response.raw());
-                        }
-
-                    }
-
-                    @Override
-                    public void onFailure(Call<ResponseBody> call, Throwable t) {
-                        Log.d("my_logs", t.getLocalizedMessage());
-                        Toast.makeText(MainActivity.this, "Something went wrong...Please try later!", Toast.LENGTH_SHORT).show();
-                    }
-                });
-
                 Request request = call.clone().request();
                 OkHttpClient client = new OkHttpClient();
                 try {
