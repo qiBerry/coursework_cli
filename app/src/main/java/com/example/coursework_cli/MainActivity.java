@@ -5,11 +5,14 @@ import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -33,15 +36,17 @@ import java.util.List;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
 
-    Button btMain;
+    Button btMain, btUpload;
     Context context;
     TextView tv2;
+    String filename;
 
     public static String getPathFromUri(final Context context, final Uri uri) {
 
@@ -166,6 +171,14 @@ public class MainActivity extends AppCompatActivity {
         return "com.google.android.apps.photos.content".equals(uri.getAuthority());
     }
 
+    public static void requestMemoryReadPermission(Context context, int requestCode){
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            ActivityCompat.requestPermissions((Activity) context,
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                    requestCode);
+        }
+    }
+
     void uploadFile(String filename) {
         class GetAsyncTask extends AsyncTask<String, String, Void> {
             @Override
@@ -178,30 +191,36 @@ public class MainActivity extends AppCompatActivity {
                                 file
                         );
                 MultipartBody.Part body =
-                        MultipartBody.Part.createFormData("files[0]", file.getName(), requestFile);
+                        MultipartBody.Part.createFormData("sendfile", file.getName(), requestFile);
 
-                Call<List<UploadReceiptService>> call = service.uploadReceipt(body);
+                Call<ResponseBody> call = service.uploadReceipt(body);
 
-                call.enqueue(new Callback<List<UploadReceiptService>>() {
+                call.enqueue(new Callback<ResponseBody>() {
                     @Override
-                    public void onResponse(Call<List<UploadReceiptService>> call, Response<List<UploadReceiptService>> response) {
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                         if (response.code() == 204) {
                             Log.d("my_logs", String.valueOf(response.body()));
                         } else {
-                            Toast.makeText(MainActivity.this, "Upload Error: " + response.message(), Toast.LENGTH_SHORT).show();
+                            Toast.makeText(MainActivity.this, "Code:" + response.code() +"\nUpload Error: " + response.toString(), Toast.LENGTH_SHORT).show();
+                            Log.d("my_logs", "Code:" + response.code() +"\nUpload Error: " + response.toString());
                         }
 
                     }
 
                     @Override
-                    public void onFailure(Call<List<UploadReceiptService>> call, Throwable t) {
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Log.d("my_logs", t.getLocalizedMessage());
                         Toast.makeText(MainActivity.this, "Something went wrong...Please try later!", Toast.LENGTH_SHORT).show();
                     }
                 });
                 return null;
             }
         }
-    }
+
+            GetAsyncTask getAsyncTask = new GetAsyncTask();
+            getAsyncTask.execute();
+        }
+
 
     void getFilename() {
         Intent chooseFile = new Intent(Intent.ACTION_GET_CONTENT);
@@ -212,19 +231,6 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    ActivityResultLauncher<Intent> someActivityResultLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            new ActivityResultCallback<ActivityResult>() {
-                @Override
-                public void onActivityResult(ActivityResult result) {
-                    if (result.getResultCode() == Activity.RESULT_OK) {
-                        // There are no request codes
-                        Intent data = result.getData();
-
-                        Log.d("my_logs", String.valueOf(data));
-                    }
-                }
-            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -233,11 +239,20 @@ public class MainActivity extends AppCompatActivity {
 
         context = this;
 
+        requestMemoryReadPermission(context, Settings.permission_request_code);
         btMain = findViewById(R.id.bt_main);
         btMain.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 getFilename();
+            }
+        });
+
+        btUpload = findViewById(R.id.bt_upload);
+        btUpload.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                uploadFile(filename);
             }
         });
 
@@ -250,14 +265,28 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case 33:
                 if (resultCode == Activity.RESULT_OK && data != null) {
-                    Uri uri = data.getData();
-                    tv2.setText("2) Вы выбрали файл: " + getPathFromUri(context, data.getData()) + "\nДля загрузки файла на сервер нажмите кнопку ниже");
+                    filename = getPathFromUri(context, data.getData());
+                    tv2.setText("2) Вы выбрали файл: " + filename + "\nДля загрузки файла на сервер нажмите кнопку ниже");
                     tv2.setVisibility(View.VISIBLE);
-                    Toast.makeText(context, getPathFromUri(context, data.getData()), Toast.LENGTH_LONG).show();
+                    btUpload.setVisibility(View.VISIBLE);
+                    //Toast.makeText(context, getPathFromUri(context, data.getData()), Toast.LENGTH_LONG).show();
 
                 }
                 break;
 
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == Settings.permission_request_code) {
+            if (grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            } else {
+                Toast.makeText(context, "ERROR", Toast.LENGTH_LONG).show();
+            }
         }
     }
 }
